@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Live Poll — Cloud Deployment for Startups</title>
+  <style>
+    :root{
+      --bg:#f7fafc; --card:#ffffff; --accent:#2563eb; --muted:#6b7280;
+    }
+    body{
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background: linear-gradient(180deg,#eef2ff 0%,var(--bg) 100%);
+      margin:0; padding:32px; color:#0f172a;
+      display:flex; align-items:flex-start; justify-content:center;
+    }
+    .container{
+      width:900px; max-width:96%; background:var(--card); border-radius:12px; box-shadow:0 10px 30px rgba(2,6,23,0.08);
+      padding:28px;
+    }
+    h1{ margin:0 0 6px; font-size:20px; }
+    p.lead{ margin:0 0 18px; color:var(--muted) }
+    .options{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:18px; }
+    button.option{
+      padding:14px; border-radius:10px; border:1px solid #e6edf8; background:linear-gradient(180deg,#fff,#f8fbff);
+      cursor:pointer; font-weight:600; font-size:15px;
+    }
+    button.option:active{ transform:translateY(1px) }
+    .stats{ margin-top:12px; }
+    .stat-row{ display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+    .label{ width:160px; font-size:14px; color:var(--muted); }
+    .bar{
+      flex:1; height:18px; background:#eef2ff; border-radius:999px; overflow:hidden; position:relative;
+      border:1px solid rgba(37,99,235,0.06);
+    }
+    .bar-fill{ height:100%; width:0%; background:var(--accent); border-radius:999px; transition:width .45s ease; }
+    .count{ width:54px; text-align:right; font-weight:700; }
+    .controls{ display:flex; gap:8px; margin-top:18px; align-items:center; flex-wrap:wrap }
+    .small{ font-size:13px; color:var(--muted) }
+    .btn{ padding:8px 12px; border-radius:8px; border:none; cursor:pointer; background:var(--accent); color:#fff; font-weight:600 }
+    .btn.ghost{ background:transparent; color:var(--accent); border:1px solid rgba(37,99,235,0.14) }
+    footer{ margin-top:18px; color:var(--muted); font-size:13px }
+    .center{ text-align:center }
+  </style>
+</head>
+<body>
+  <div class="container" role="main">
+    <h1>Live Poll: Which cloud deployment model is most suitable for startups?</h1>
+    <p class="lead">Choose one option below. Results update instantly (stored locally in your browser). Use <strong>Export CSV</strong> to capture results for documentation.</p>
+
+    <div class="options" id="options">
+      <button class="option" data-key="public">Public Cloud</button>
+      <button class="option" data-key="private">Private Cloud</button>
+      <button class="option" data-key="hybrid">Hybrid Cloud</button>
+      <button class="option" data-key="multi">Multi-cloud</button>
+    </div>
+
+    <div class="center">
+      <button class="btn" id="reset">Reset Poll</button>
+      <button class="btn ghost" id="export">Export CSV</button>
+      <span class="small" style="margin-left:8px">Total votes: <span id="totalVotes">0</span></span>
+    </div>
+
+    <div class="stats" id="stats" aria-live="polite" style="margin-top:18px">
+      <!-- stat rows are injected here -->
+    </div>
+
+    <footer>
+      <strong>Notes:</strong> To capture live results using Mentimeter, create a Mentimeter poll and share the audience link/QR with participants; Mentimeter stores and displays live voting. (This local page is for classroom/demo use.)
+    </footer>
+  </div>
+
+  <script>
+    // Option keys & labels
+    const OPTIONS = {
+      public: "Public Cloud",
+      private: "Private Cloud",
+      hybrid: "Hybrid Cloud",
+      multi: "Multi-cloud"
+    };
+
+    const STORAGE_KEY = "cloud_poll_votes_v1";
+
+    // DOM
+    const optionsEl = document.getElementById('options');
+    const statsEl = document.getElementById('stats');
+    const totalVotesEl = document.getElementById('totalVotes');
+    const exportBtn = document.getElementById('export');
+    const resetBtn = document.getElementById('reset');
+
+    // Load stored votes or init
+    function loadVotes() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) {
+        const init = {};
+        Object.keys(OPTIONS).forEach(k => init[k] = 0);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(init));
+        return init;
+      }
+      try {
+        return JSON.parse(raw);
+      } catch (e) {
+        // fallback
+        const init = {};
+        Object.keys(OPTIONS).forEach(k => init[k] = 0);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(init));
+        return init;
+      }
+    }
+
+    function saveVotes(v) { localStorage.setItem(STORAGE_KEY, JSON.stringify(v)); }
+
+    // Render stats
+    function render() {
+      const votes = loadVotes();
+      const total = Object.values(votes).reduce((a,b)=>a+b,0);
+      statsEl.innerHTML = '';
+      totalVotesEl.textContent = total;
+      Object.keys(OPTIONS).forEach(key => {
+        const label = OPTIONS[key];
+        const count = votes[key] || 0;
+        const percent = total === 0 ? 0 : Math.round((count/total)*100);
+        const row = document.createElement('div');
+        row.className = 'stat-row';
+        row.innerHTML = `
+          <div class="label">${label}</div>
+          <div class="bar" aria-hidden="true">
+            <div class="bar-fill" style="width:${percent}%"></div>
+          </div>
+          <div class="count">${count} (${percent}%)</div>
+        `;
+        statsEl.appendChild(row);
+      });
+    }
+
+    // Vote handler
+    optionsEl.addEventListener('click', e => {
+      const btn = e.target.closest('button[data-key]');
+      if (!btn) return;
+      const key = btn.getAttribute('data-key');
+      const votes = loadVotes();
+      votes[key] = (votes[key] || 0) + 1;
+      saveVotes(votes);
+      render();
+      // brief feedback
+      btn.animate([{ transform: 'scale(1.02)' }, { transform: 'scale(1)' }], { duration: 120 });
+    });
+
+    // Export CSV
+    exportBtn.addEventListener('click', () => {
+      const votes = loadVotes();
+      const rows = [["option","label","count"]];
+      Object.keys(OPTIONS).forEach(k => rows.push([k, OPTIONS[k], votes[k] || 0]));
+      const csv = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'cloud_poll_results.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    // Reset (confirmation)
+    resetBtn.addEventListener('click', () => {
+      if (!confirm('Reset all votes? This will clear stored results in this browser.')) return;
+      const init = {};
+      Object.keys(OPTIONS).forEach(k => init[k] = 0);
+      saveVotes(init);
+      render();
+    });
+
+    // initial render
+    render();
+  </script>
+</body>
+</html>
